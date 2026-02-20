@@ -60,3 +60,10 @@ curl -X POST http://localhost:8088/patient/search \
 - Project Structure: `docs/project-structure.md`
 - API Spec: `docs/api-spec.md`
 - ER Diagram: `docs/er-diagram.md`
+
+## Design Decisions
+
+- **Architecture:** The project employs an internal layered architectural pattern (`http` -> `service` -> `repository`), ensuring that responsibilities are separated for high maintainability and testability.
+- **Data Synchronization Strategy:** If a patient searched by `national_id` or `passport_id` is not found locally, the system automatically fetches data from the Hospital A API and upserts it into the local database. This robustly serves as a caching mechanism for future subsequent queries.
+- **Access Control & Data Isolation:** Security is enforced via JWT authentication, where the `hospital` claim restricts a staff's patient querying scope exclusively to their assigned hospital domain, preventing cross-hospital data leakage.
+- **Configuration Management (12-Factor App):** Non-sensitive credentials, environment-specific URLs, and secrets (`DATABASE_URL`, `HOSPITAL_A_BASE_URL`, `JWT_SECRET`) are strictly maintained within dynamic environment variables (`docker-compose.yml` or local execution), keeping the codebase clean of hardcoding.
