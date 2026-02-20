@@ -52,13 +52,19 @@ func (r *postgresPatientRepository) SearchByHospital(hospital string, c model.Pa
 	args := []any{hospital}
 	idx := 2
 
-	appendLike := func(cond string, value *string) {
+	appendLike := func(cond string, value *string, placeholderCount int) {
 		if value == nil || strings.TrimSpace(*value) == "" {
 			return
 		}
-		base += fmt.Sprintf(" AND %s", fmt.Sprintf(cond, idx))
-		args = append(args, "%"+strings.TrimSpace(*value)+"%")
-		idx++
+		placeholders := make([]any, placeholderCount)
+		for i := range placeholders {
+			placeholders[i] = idx + i
+		}
+		base += fmt.Sprintf(" AND %s", fmt.Sprintf(cond, placeholders...))
+		for i := 0; i < placeholderCount; i++ {
+			args = append(args, "%"+strings.TrimSpace(*value)+"%")
+		}
+		idx += placeholderCount
 	}
 	appendEq := func(field string, value *string) {
 		if value == nil || strings.TrimSpace(*value) == "" {
@@ -71,11 +77,11 @@ func (r *postgresPatientRepository) SearchByHospital(hospital string, c model.Pa
 
 	appendEq("national_id", c.NationalID)
 	appendEq("passport_id", c.PassportID)
-	appendLike("(first_name_en ILIKE $%d OR first_name_th ILIKE $%d)", c.FirstName)
-	appendLike("(middle_name_en ILIKE $%d OR middle_name_th ILIKE $%d)", c.MiddleName)
-	appendLike("(last_name_en ILIKE $%d OR last_name_th ILIKE $%d)", c.LastName)
-	appendLike("phone_number ILIKE $%d", c.PhoneNumber)
-	appendLike("email ILIKE $%d", c.Email)
+	appendLike("(first_name_en ILIKE $%d OR first_name_th ILIKE $%d)", c.FirstName, 2)
+	appendLike("(middle_name_en ILIKE $%d OR middle_name_th ILIKE $%d)", c.MiddleName, 2)
+	appendLike("(last_name_en ILIKE $%d OR last_name_th ILIKE $%d)", c.LastName, 2)
+	appendLike("phone_number ILIKE $%d", c.PhoneNumber, 1)
+	appendLike("email ILIKE $%d", c.Email, 1)
 
 	if c.DateOfBirth != nil && strings.TrimSpace(*c.DateOfBirth) != "" {
 		base += fmt.Sprintf(" AND date_of_birth = $%d", idx)
