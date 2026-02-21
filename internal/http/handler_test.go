@@ -178,3 +178,62 @@ func TestPatientSearchUnauthorized(t *testing.T) {
 		t.Fatalf("expected 401 got %d", w.Code)
 	}
 }
+
+func TestPatientSearchBadRequestInvalidBody(t *testing.T) {
+	r := setupRouter(&fakeStaffService{
+		createFn: func(username, password, hospital string) (model.Staff, error) { return model.Staff{}, nil },
+		loginFn:  func(username, password, hospital string) (string, error) { return "", nil },
+	}, &fakePatientService{searchFn: func(hospital string, c model.PatientSearchCriteria) ([]model.Patient, error) {
+		t.Fatalf("search service should not be called on invalid request body")
+		return nil, nil
+	}})
+
+	tokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"hospital": "A",
+		"iat":      time.Now().Unix(),
+		"exp":      time.Now().Add(1 * time.Hour).Unix(),
+	})
+	token, err := tokenObj.SignedString([]byte("secret"))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/patient/search", bytes.NewReader([]byte(`{"date_of_birth":123}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 got %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestPatientSearchInternalServerError(t *testing.T) {
+	r := setupRouter(&fakeStaffService{
+		createFn: func(username, password, hospital string) (model.Staff, error) { return model.Staff{}, nil },
+		loginFn:  func(username, password, hospital string) (string, error) { return "", nil },
+	}, &fakePatientService{searchFn: func(hospital string, c model.PatientSearchCriteria) ([]model.Patient, error) {
+		return nil, errors.New("db error")
+	}})
+
+	tokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"hospital": "A",
+		"iat":      time.Now().Unix(),
+		"exp":      time.Now().Add(1 * time.Hour).Unix(),
+	})
+	token, err := tokenObj.SignedString([]byte("secret"))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/patient/search", bytes.NewReader([]byte(`{"first_name":"Jo"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 got %d, body=%s", w.Code, w.Body.String())
+	}
+}
